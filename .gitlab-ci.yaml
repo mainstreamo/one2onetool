@@ -18,6 +18,16 @@ docker-build:
     - docker build . --rm -t ${CI_REGISTRY_IMAGE}/one2onetool:${CI_COMMIT_TAG}
     - docker push ${CI_REGISTRY_IMAGE}/one2onetool:${CI_COMMIT_TAG}
 
+.deploy:
+  script:
+  - &deploy |
+    kubectl config use-context ${ENVIRONMENT}-kube-context
+    helm install \
+      -f deploy/${ENVIRONMENT}.yaml 
+      -f deploy/common.yaml \
+      ${APP_NAME} \
+      --set image.tag=${CI_COMMIT_TAG}  
+
 deploy_staging:
   stage: deploy
   rules:
@@ -25,14 +35,10 @@ deploy_staging:
   only:
     refs:
     - staging
+  variables:
+    ENVIRONMENT: staging
   script: 
-    - |
-      kubectl config use-context staging-kube-context
-      helm install \
-        -f deploy/staging.yaml 
-        -f deploy/common.yaml \
-        ${APP_NAME} \
-        --set image.tag=${CI_COMMIT_TAG}
+    - *deploy
 
 deploy_prod:
   stage: deploy
@@ -41,11 +47,7 @@ deploy_prod:
   only:
     refs:
     - release
+  variables:
+    ENVIRONMENT: prod
   script: 
-    - |
-      kubectl config use-context prod-kube-context
-      helm install \
-        -f deploy/staging.yaml \
-        -f deploy/common.yaml \ 
-        ${APP_NAME}  \
-        --set image.tag=${CI_COMMIT_TAG}
+    - *deploy
