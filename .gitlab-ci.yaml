@@ -1,0 +1,51 @@
+variables:
+  APP_NAME: "one2onetool"
+
+stages:
+  - build_and_test
+  - deploy
+
+
+docker-build:
+  stage: build_and_test
+  rules:
+    only:
+      refs:
+      - staging
+      - release
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build . --rm -t ${CI_REGISTRY_IMAGE}/one2onetool:${CI_COMMIT_TAG}
+    - docker push ${CI_REGISTRY_IMAGE}/one2onetool:${CI_COMMIT_TAG}
+
+deploy_staging:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_TAG
+  only:
+    refs:
+    - staging
+  script: 
+    - |
+      kubectl config use-context staging-kube-context
+      helm install \
+        -f deploy/staging.yaml 
+        -f deploy/common.yaml \
+        ${APP_NAME} \
+        --set image.tag=${CI_COMMIT_TAG}
+
+deploy_prod:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_TAG
+  only:
+    refs:
+    - release
+  script: 
+    - |
+      kubectl config use-context prod-kube-context
+      helm install \
+        -f deploy/staging.yaml \
+        -f deploy/common.yaml \ 
+        ${APP_NAME}  \
+        --set image.tag=${CI_COMMIT_TAG}
